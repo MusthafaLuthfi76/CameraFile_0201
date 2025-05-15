@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:bloc/bloc.dart';
 import 'package:camera/camera.dart';
+import 'package:cameraandfilesensor/bloc/camera_page.dart';
+import 'package:cameraandfilesensor/helpers/storage_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
@@ -21,7 +23,7 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     on<PickImageFromGallery>(_onPickGallery);
     on<OpenCameraAndCapture>(_onOpenCamera);
     on<DeleteImage>(_onDeleteImage);
-    on<ClearSnackBar>(_onClearSnackBar);
+    on<ClearSnackbar>(_onClearSnackBar);
     on<RequestPermissions>(_onRequestPermissions);
   }
 
@@ -30,13 +32,10 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     Emitter<CameraState> emit,
   ) async {
     _cameras = await availableCameras();
-    await _setupController(0, emit)
+    await _setupController(0, emit);
   }
 
-  Future<void> _onSwitch(
-    SwitchCamera event,
-    Emitter<CameraState> emit,
-  ) async {
+  Future<void> _onSwitch(SwitchCamera event, Emitter<CameraState> emit) async {
     if (state is! CameraReady) return;
     final s = state as CameraReady;
     final next = (s.selectedIndex + 1) % _cameras.length;
@@ -49,9 +48,10 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
   ) async {
     if (state is! CameraReady) return;
     final s = state as CameraReady;
-    final next = s.flashMode == FlashMode.off
-        ? FlashMode.auto
-        : s.flashMode == FlashMode.auto
+    final next =
+        s.flashMode == FlashMode.off
+            ? FlashMode.auto
+            : s.flashMode == FlashMode.auto
             ? FlashMode.always
             : FlashMode.off;
 
@@ -81,7 +81,7 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     );
 
     await s.controller.setFocusPoint(relative);
-    await s.controller.setExposureMode(relative);
+    await s.controller.setExposurePoint(relative);
   }
 
   Future<void> _onPickGallery(
@@ -92,11 +92,12 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery);
     final file = File(picked!.path);
-    emit((state as CameraReady).copyWith(
-      imageFile: file,
-      snackBarMessage: 'Berhasil memilih dari galeri.',
-    ));
-    
+    emit(
+      (state as CameraReady).copyWith(
+        imageFile: file,
+        snackbarMessage: 'Berhasil memilih dari galeri.',
+      ),
+    );
   }
 
   Future<void> _onOpenCamera(
@@ -113,19 +114,19 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     final file = await Navigator.push<File?>(
       event.context,
       MaterialPageRoute(
-        builder: (_) => BlocProvider.value(
-          value: this,
-          child: const CameraPage(),
-        ),
+        builder:
+            (_) => BlocProvider.value(value: this, child: const CameraPage()),
       ),
     );
 
     if (file != null) {
       final saved = await StorageHelper.saveImage(file, 'camera');
-      emit((state as CameraReady).copyWith(
-        imageFile: saved,
-        snackBarMessage: 'Disimpan: ${saved.path}',
-      ));
+      emit(
+        (state as CameraReady).copyWith(
+          imageFile: saved,
+          snackbarMessage: 'Disimpan: ${saved.path}',
+        ),
+      );
     }
   }
 
@@ -136,26 +137,28 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     if (state is! CameraReady) return;
     final s = state as CameraReady;
     await s.imageFile?.delete();
-    emit(CameraReady(
-      controller: s.controller,
-      selectedIndex: s.selectedIndex,
-      flashMode: s.flashMode,
-      imageFile: null,
-      snackBarMessage: 'Gambar dihapus',
-    ));
+    emit(
+      CameraReady(
+        controller: s.controller,
+        selectedIndex: s.selectedIndex,
+        flashMode: s.flashMode,
+        imageFile: null,
+        snackbarMessage: 'Gambar dihapus',
+      ),
+    );
   }
 
   Future<void> _onClearSnackBar(
-    ClearSnackBar event,
+    ClearSnackbar event,
     Emitter<CameraState> emit,
   ) async {
     if (state is! CameraReady) return;
     final s = state as CameraReady;
-    emit(s.copyWith(clearSnackBar: true));
+    emit(s.copyWith(clearSnackbar: true));
   }
 
   Future<void> _setupController(
-    int index, 
+    int index,
     Emitter<CameraState> emit, {
     CameraReady? previous,
   }) async {
@@ -168,13 +171,15 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     await controller.initialize();
     await controller.setFlashMode(previous?.flashMode ?? FlashMode.off);
 
-    emit(CameraReady(
-      controller: controller,
-      selectedIndex: index,
-      flashMode: previous?.flashMode ?? FlashMode.off,
-      imageFile: previous?.imageFile,
-      snackBarMessage: null,
-    ));
+    emit(
+      CameraReady(
+        controller: controller,
+        selectedIndex: index,
+        flashMode: previous?.flashMode ?? FlashMode.off,
+        imageFile: previous?.imageFile,
+        snackbarMessage: null,
+      ),
+    );
   }
 
   @override
@@ -189,19 +194,22 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     RequestPermissions event,
     Emitter<CameraState> emit,
   ) async {
-    final statuses = await [
-      Permission.camera,
-      Permission.storage,
-      Permission.manageExternalStorage,
-    ].request();
+    final statuses =
+        await [
+          Permission.camera,
+          Permission.storage,
+          Permission.manageExternalStorage,
+        ].request();
 
     final denied = statuses.entries.where((e) => !e.value.isGranted).toList();
 
     if (denied.isNotEmpty) {
       if (state is CameraReady) {
-        emit((state as CameraReady).copyWith(
-          snackBarMessage: 'Izin kamera atau penyimpanan ditolak.',
-        ));
+        emit(
+          (state as CameraReady).copyWith(
+            snackbarMessage: 'Izin kamera atau penyimpanan ditolak.',
+          ),
+        );
       }
     }
   }
